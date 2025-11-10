@@ -11,8 +11,8 @@ const Login = ({ onLogin }) => {
     e.preventDefault();
     
     // Fixed credentials
-    const ADMIN_USERNAME = 'admin';
-    const ADMIN_PASSWORD = 'admin123';
+    const ADMIN_USERNAME = 'sasrna';
+    const ADMIN_PASSWORD = 'batch2225';
 
     if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
       onLogin();
@@ -87,3 +87,4 @@ const Login = ({ onLogin }) => {
 };
 
 export default Login;
+
