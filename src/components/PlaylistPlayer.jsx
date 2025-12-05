@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { subscribeToPlaylists } from '../firebase/playlistService';
 import { X, Maximize, Minimize } from 'lucide-react';
 import './PlaylistPlayer.css';
@@ -12,77 +12,95 @@ const PlaylistPlayer = () => {
   const timerRef = useRef(null);
   const playerRef = useRef(null);
   const fullscreenAttempted = useRef(false);
+  const scheduleCheckInterval = useRef(null);
 
-  useEffect(() => {
-    // Subscribe to playlists
-    const unsubscribe = subscribeToPlaylists((playlists) => {
-      // Filter active playlists that should play now
-      const now = new Date();
-      const currentHour = now.getHours();
-      const currentMinute = now.getMinutes();
-      const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
-      const currentTime = currentHour * 60 + currentMinute; // Convert to minutes
+  // Function to check and update active playlists
+  const checkSchedule = useCallback((playlists) => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const currentTime = currentHour * 60 + currentMinute; // Convert to minutes
 
-      console.log('PlaylistPlayer - Checking playlists:', {
-        totalPlaylists: playlists.length,
-        currentDay,
-        currentTime: `${currentHour}:${currentMinute}`,
-      });
-
-      const activeNow = playlists.filter(playlist => {
-        if (!playlist.isActive || !playlist.items || playlist.items.length === 0) {
-          console.log(`Playlist "${playlist.name}" filtered out:`, {
-            isActive: playlist.isActive,
-            hasItems: playlist.items?.length > 0
-          });
-          return false;
-        }
-
-        // Check if current day is in schedule
-        if (!playlist.schedule?.days?.includes(currentDay)) {
-          console.log(`Playlist "${playlist.name}" not scheduled for today (${currentDay}). Scheduled days:`, playlist.schedule?.days);
-          return false;
-        }
-
-        // Parse schedule times
-        const [startHour, startMinute] = (playlist.schedule.start || '09:00').split(':').map(Number);
-        const [endHour, endMinute] = (playlist.schedule.end || '17:00').split(':').map(Number);
-        const startTime = startHour * 60 + startMinute;
-        const endTime = endHour * 60 + endMinute;
-
-        // Check if current time is within schedule
-        const isInTimeRange = currentTime >= startTime && currentTime <= endTime;
-        if (!isInTimeRange) {
-          console.log(`Playlist "${playlist.name}" not in time range. Current: ${currentTime}, Range: ${startTime}-${endTime}`);
-        }
-        return isInTimeRange;
-      });
-
-      console.log('Active playlists found:', activeNow.length);
-
-      setActivePlaylists(activeNow);
-
-      // Set the first active playlist as current, or update if playlist changed
-      if (activeNow.length > 0) {
-        if (!currentPlaylist || currentPlaylist.id !== activeNow[0].id) {
-          console.log('Setting active playlist:', activeNow[0].name);
-          setCurrentPlaylist(activeNow[0]);
-          setCurrentItemIndex(0);
-          setIsPlaying(true);
-        } else {
-          // Update current playlist with latest data
-          setCurrentPlaylist(activeNow[0]);
-        }
-      } else if (currentPlaylist) {
-        // No active playlists, stop playing
-        console.log('No active playlists, stopping playback');
-        setIsPlaying(false);
-        setCurrentPlaylist(null);
-      }
+    console.log('PlaylistPlayer - Checking schedule:', {
+      totalPlaylists: playlists.length,
+      currentDay,
+      currentTime: `${currentHour}:${currentMinute}`,
     });
 
-    return () => unsubscribe();
-  }, [currentPlaylist]);
+    const activeNow = playlists.filter(playlist => {
+      if (!playlist.isActive || !playlist.items || playlist.items.length === 0) {
+        return false;
+      }
+
+      // Check if current day is in schedule
+      if (!playlist.schedule?.days?.includes(currentDay)) {
+        return false;
+      }
+
+      // Parse schedule times
+      const [startHour, startMinute] = (playlist.schedule.start || '09:00').split(':').map(Number);
+      const [endHour, endMinute] = (playlist.schedule.end || '17:00').split(':').map(Number);
+      const startTime = startHour * 60 + startMinute;
+      const endTime = endHour * 60 + endMinute;
+
+      // Check if current time is within schedule
+      return currentTime >= startTime && currentTime <= endTime;
+    });
+
+    console.log('Active playlists found:', activeNow.length);
+
+    setActivePlaylists(activeNow);
+
+    // Set the first active playlist as current, or update if playlist changed
+    if (activeNow.length > 0) {
+      setCurrentPlaylist(prev => {
+        if (!prev || prev.id !== activeNow[0].id) {
+          console.log('✅ Starting playlist:', activeNow[0].name);
+          setCurrentItemIndex(0);
+          setIsPlaying(true);
+          return activeNow[0];
+        }
+        // Update current playlist with latest data
+        return activeNow[0];
+      });
+    } else {
+      setCurrentPlaylist(prev => {
+        if (prev) {
+          console.log('⏹️ No active playlists, stopping playback');
+          setIsPlaying(false);
+          return null;
+        }
+        return prev;
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    let latestPlaylists = [];
+
+    // Subscribe to playlists
+    const unsubscribe = subscribeToPlaylists((playlists) => {
+      latestPlaylists = playlists;
+      console.log('📋 Playlists received from Firebase:', playlists.length);
+      checkSchedule(playlists);
+    });
+
+    // Check schedule every 10 seconds (more responsive for testing)
+    scheduleCheckInterval.current = setInterval(() => {
+      console.log('⏰ Periodic schedule check (every 10s)...');
+      if (latestPlaylists.length > 0) {
+        checkSchedule(latestPlaylists);
+      }
+    }, 10000); // Check every 10 seconds
+
+    return () => {
+      unsubscribe();
+      if (scheduleCheckInterval.current) {
+        clearInterval(scheduleCheckInterval.current);
+      }
+    };
+  }, []); // Empty dependency - only run once on mount
 
   useEffect(() => {
     // Auto-play items in sequence
