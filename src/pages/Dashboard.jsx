@@ -35,19 +35,25 @@ const Dashboard = () => {
   // });
 
   useEffect(() => {
+    console.log('Dashboard mounted');
     setPageTitle('Dashboard');
 
     // Subscribe to real-time updates
     // const unsubscribeStats = subscribeToDashboardStats(setStats);
-    const unsubscribeActivity = subscribeToRecentActivity(setRecentActivity);
+    const unsubscribeActivity = subscribeToRecentActivity((activity) => {
+      console.log('Received activity data:', activity);
+      setRecentActivity(activity);
+    });
     // const unsubscribeHealth = subscribeToSystemHealth(setSystemHealth); // Commented - To be implemented later
 
     // Calculate stats from individual services
     const unsubscribeMedia = subscribeToMedia((media) => {
+      console.log('Received media data:', media.length);
       setStats(prev => ({ ...prev, totalMedia: media.length }));
     });
 
     const unsubscribePlaylists = subscribeToPlaylists((playlists) => {
+      console.log('Received playlists data:', playlists.length);
       const activePlaylists = playlists.filter(p => p.isActive).length;
       setStats(prev => ({ ...prev, activePlaylists }));
     });
