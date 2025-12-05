@@ -9,17 +9,9 @@ const PlaylistPlayer = () => {
   const [currentItemIndex, setCurrentItemIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [closeCount, setCloseCount] = useState(0);
   const timerRef = useRef(null);
   const playerRef = useRef(null);
   const fullscreenAttempted = useRef(false);
-
-  // Check close count from localStorage on mount
-  useEffect(() => {
-    const savedCloseCount = parseInt(localStorage.getItem('playlistCloseCount') || '0');
-    setCloseCount(savedCloseCount);
-    console.log('Player close count:', savedCloseCount);
-  }, []);
 
   useEffect(() => {
     // Subscribe to playlists
@@ -69,13 +61,6 @@ const PlaylistPlayer = () => {
       console.log('Active playlists found:', activeNow.length);
 
       setActivePlaylists(activeNow);
-
-      // Check if user has closed the player 3 times - if so, don't auto-play
-      const savedCloseCount = parseInt(localStorage.getItem('playlistCloseCount') || '0');
-      if (savedCloseCount >= 3) {
-        console.log('Playlist auto-play disabled - user closed 3 times');
-        return;
-      }
 
       // Set the first active playlist as current, or update if playlist changed
       if (activeNow.length > 0) {
@@ -182,18 +167,6 @@ const PlaylistPlayer = () => {
   }, [isPlaying]);
 
   const handleClose = () => {
-    // Increment close count
-    const newCloseCount = closeCount + 1;
-    setCloseCount(newCloseCount);
-    localStorage.setItem('playlistCloseCount', newCloseCount.toString());
-    
-    console.log(`Player closed ${newCloseCount} time(s)`);
-    
-    if (newCloseCount >= 3) {
-      console.log('⚠️ Playlist auto-play disabled - closed 3 times. Refresh page to reset.');
-      alert('Playlist auto-play disabled after 3 closes. Refresh the page to re-enable.');
-    }
-    
     setIsPlaying(false);
     setCurrentPlaylist(null);
     setCurrentItemIndex(0);
