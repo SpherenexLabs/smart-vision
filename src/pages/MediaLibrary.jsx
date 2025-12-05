@@ -58,7 +58,7 @@ const MediaLibrary = () => {
           const metadata = {
             type: getFileType(file.type),
             size: formatFileSize(file.size),
-            thumbnail: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+            thumbnail: null, // Let uploadMedia handle the thumbnail URL
           };
           
           await uploadMedia(file, metadata);
@@ -295,8 +295,16 @@ const MediaLibrary = () => {
               <div key={item.id} className="media-card">
                 {/* Thumbnail */}
                 <div className="media-thumbnail">
-                  {item.thumbnail ? (
-                    <img src={item.thumbnail} alt={item.name} />
+                  {item.thumbnail && !item.thumbnail.startsWith('blob:') ? (
+                    <img 
+                      src={item.thumbnail} 
+                      alt={item.name}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        const icon = e.target.nextElementSibling;
+                        if (icon) icon.style.display = 'block';
+                      }}
+                    />
                   ) : (
                     <Icon size={48} />
                   )}

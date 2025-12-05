@@ -30,6 +30,8 @@ import {
   Save,
   X,
   PlaySquare,
+  Image,
+  FileText,
 } from 'lucide-react';
 import { subscribeToPlaylists, createPlaylist, updatePlaylist, deletePlaylist, updatePlaylistItems } from '../firebase/playlistService';
 import { logActivity } from '../firebase/dashboardService';
@@ -64,6 +66,12 @@ const SortableItem = ({ id, item, onDelete, onEdit }) => {
             <Clock size={14} />
             {item.duration}s
           </span>
+          {item.type === 'video' && item.startTime > 0 && (
+            <span className="flex items-center gap-1 text-blue-600">
+              <PlaySquare size={14} />
+              Start: {item.startTime}s
+            </span>
+          )}
           {item.loop && (
             <span className="flex items-center gap-1 text-indigo-600">
               <Repeat size={14} />
@@ -101,6 +109,7 @@ const Playlists = () => {
   const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0);
   const [showMediaSelector, setShowMediaSelector] = useState(false);
   const [availableMedia, setAvailableMedia] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -110,15 +119,20 @@ const Playlists = () => {
   );
 
   useEffect(() => {
+    console.log('Playlists component mounted');
     setPageTitle('Playlists');
+    setLoading(true);
 
     // Subscribe to real-time playlist updates
     const unsubscribePlaylists = subscribeToPlaylists((playlistsData) => {
+      console.log('Received playlists data:', playlistsData);
       setPlaylists(playlistsData);
+      setLoading(false);
     });
 
     // Subscribe to real-time media updates for media selector
     const unsubscribeMedia = subscribeToMedia((mediaData) => {
+      console.log('Received media data:', mediaData);
       setAvailableMedia(mediaData);
     });
 
@@ -256,7 +270,7 @@ const Playlists = () => {
       name: 'New Playlist',
       items: [],
       schedule: { start: '09:00', end: '17:00', days: [1, 2, 3, 4, 5] },
-      isActive: false,
+      isActive: true,
     };
     
     try {
@@ -322,6 +336,7 @@ const Playlists = () => {
         thumbnail: media.thumbnail,
         duration: 10,
         loop: false,
+        startTime: 0,
       };
 
       const newItems = [...(selectedPlaylist.items || []), newItem];
@@ -426,8 +441,9 @@ const Playlists = () => {
                           : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }
                     `}
+                    title={playlist.isActive ? 'Playlist is Active (Click to Deactivate)' : 'Playlist is Inactive (Click to Activate)'}
                   >
-                    {playlist.isActive ? <Play size={18} /> : <Pause size={18} />}
+                    {playlist.isActive ? <Pause size={18} /> : <Play size={18} />}
                   </button>
                   <button
                     onClick={(e) => {
@@ -679,6 +695,26 @@ const Playlists = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
                 />
               </div>
+              {editingItem.type === 'video' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Start Time (seconds)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editingItem.startTime || 0}
+                    onChange={(e) =>
+                      setEditingItem({ ...editingItem, startTime: parseInt(e.target.value) || 0 })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                    placeholder="Enter start time in seconds"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Video will start playing from this time
+                  </p>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -744,12 +780,20 @@ const Playlists = () => {
                       onClick={() => addMediaToPlaylist(media)}
                       className="cursor-pointer border-2 border-gray-200 rounded-lg p-3 hover:border-indigo-600 hover:shadow-md transition-all"
                     >
-                      {media.type === 'image' && media.thumbnail && (
+                      {media.type === 'image' && media.thumbnail && !media.thumbnail.startsWith('blob:') && (
                         <img
                           src={media.thumbnail}
                           alt={media.name}
                           className="w-full h-32 object-cover rounded-lg mb-2"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
                         />
+                      )}
+                      {(media.type === 'image' && (!media.thumbnail || media.thumbnail.startsWith('blob:'))) && (
+                        <div className="w-full h-32 bg-gray-100 rounded-lg mb-2 flex items-center justify-center">
+                          <Image size={32} className="text-gray-400" />
+                        </div>
                       )}
                       {media.type === 'video' && (
                         <div className="w-full h-32 bg-gray-100 rounded-lg mb-2 flex items-center justify-center">
